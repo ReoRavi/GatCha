@@ -1,22 +1,24 @@
+// Game Rate Sorted By height
+// Game Width, Height
 var width = 750;
 var height = 1334;
 
-var renderer = new PIXI.WebGLRenderer(width, height, {});
+// fixedRate
+var fixedRate = window.innerHeight / height;
+;
+// Fixed Width, Height
+var fixedWidthRate = (fixedRate) * width;
+var fixedHeightRate = (fixedRate) * height;
+
+if (fixedHeightRate >= height) {
+    fixedWidthRate = width;
+    fixedHeightRate = height;
+}
+
+var renderer = new PIXI.WebGLRenderer(fixedWidthRate, fixedHeightRate, {});
 var container = new PIXI.Container();
 
 document.body.appendChild(renderer.view);
-$(renderer.view).css('height', '100vw');
-
-var ball = new Array();
-var ballBody = new Array();
-
-var backGround;
-var backGround2;
-var backGround3;
-var backGround4;
-var backGround5;
-
-var ballMaxCount;
 
 // 0 : load
 // 1 : Game
@@ -24,207 +26,271 @@ var ballMaxCount;
 // 3 : Wait Click Reward
 var gameState = 0;
 
+// Ball Pixi Sprite Array
+var ball = new Array();
+// Ball Matter Body Array
+var ballBody = new Array();
+
+// BackGround
+var backGround;
+// Exit
 var exit;
+// Exit Bar
 var exitBar;
 
+// Button
 var kickButton;
 var getButton;
 
+// Exit Bar Rotate
+var rotateValue;
+
+// Reward Values
+var rewardBackGround;
+var rewardIndex = 0;
+var reward;
+var isBigBall;
+
+// Matter Engine Instance
 var engine;
-var runner;
 
-var Engine, Runner, World, Bodies;
+// Create Matter Rectangle Collider
+function CreateRectangle(x, y, width, height, option, rate) {
+    return Matter.Bodies.rectangle(x * rate, y * rate, width * rate, height * rate, option);
+}
 
-// matter Init and Link Object
+// Create Matter Circle Collider
+function CreateCircle(x, y, radius, option, rate) {
+    return Matter.Bodies.circle(x * rate, y * rate, radius * rate, option);
+}
+
+// Create Pixi Sprite
+function CreatePixiSprite(container, path, x, y, width, height, rate, options){
+    var sprite = new PIXI.Sprite(PIXI.Texture.fromImage(path));
+
+    if (x != undefined)
+        sprite.x = x * rate;
+    if (y != undefined)
+        sprite.y = y * rate;
+    if (width != undefined)
+        sprite.width = width * rate;
+    if (height != undefined)
+        sprite.height = height * rate;
+
+    if(options != undefined){
+        if (options.anchor != 0)
+        {
+            sprite.anchor.set(options.anchor);
+        }
+    }
+
+    container.addChild(sprite);
+
+    return sprite;
+}
+
+// Matter Init and Link Object
 function Init() {
-    Engine = Matter.Engine,
-        Runner = Matter.Runner,
-        World = Matter.World,
-        Bodies = Matter.Bodies;
+    // Set Objects Image
+    backGround = pah(container, "./static/Img/BackGround.png", 0, 0, 750 * fixedRate, 1344 * fixedRate);
+
+    // Set Buttons
+    kickButton = pah(container, "./static/Img/Kick.png", 100 * fixedRate, 1175 * fixedRate, 104 * fixedRate, 102 * fixedRate);
+    kickButton.interactive = true;
+    kickButton.buttonMode = true;
+    kickButton.on('pointerdown', KickButtonClick);
+
+    getButton = pah(container, "./static/Img/Get.png", 550 * fixedRate, 1175 * fixedRate, 104 * fixedRate, 102 * fixedRate);
+    getButton.interactive = true;
+    getButton.buttonMode = true;
+    getButton.on('pointerdown', GetButtonClick);
+
+    // Initialize Matter
+    var Engine = Matter.Engine;
+    var Runner = Matter.Runner;
+    var World = Matter.World;
+    var Render = Matter.Render;
 
     engine = Engine.create();
-    runner = Runner.create();
+    var runner = Runner.create();
 
-    backGround2 = Bodies.polygon(200, 460, 3, 60);
+    // Create Ground Collider
+    var ground = CreateRectangle(width / 2, 1070, 80, 20, {isStatic: true}, fixedRate);
+    var ground2 = CreateRectangle(150, 844, 524, 20, {isStatic: true, angle: Math.PI * 0.26}, fixedRate);
+    var ground3 = CreateRectangle((width) - 150, 844, 524, 20, {isStatic: true, angle: -Math.PI * 0.26}, fixedRate);
+    var ground4 = CreateRectangle(0, 320, 20, 700, {isStatic: true}, fixedRate);
+    var ground5 = CreateRectangle(width, 320, 20, 700, {isStatic: true}, fixedRate);
 
-    var ground = Bodies.rectangle(width / 2, 1070, 80, 20, {isStatic: true});
+    World.add(engine.world, [ground, ground2, ground3, ground4, ground5]);
 
-    backGround2 = Bodies.rectangle(150, 844, 524, 20, { isStatic: true, angle: Math.PI * 0.26 });
-    backGround3 = Bodies.rectangle((width) - 150, 844, 524, 20, { isStatic: true, angle: -Math.PI * 0.26 });
-    backGround4 = Bodies.rectangle(0, 320, 20, 700,  { isStatic: true });
-    backGround5 = Bodies.rectangle(width, 320, 20, 700, { isStatic: true });
-
-    Engine.run(engine);
-    Runner.run(runner, engine);
-
-    backGround = pah(container, "./static/Img/BackGround.png", 0, 0, 750, 1344);
-
+    // Create Ball Collider
     var xCount = 60;
     var yCount = 0;
 
-    ballMaxCount = 50;
-
-    for (var i = 0; i < ballMaxCount ; i++) {
+    for (var i = 0; i < 50; i++) {
         if (xCount > width) {
             yCount += 80;
             xCount = 60;
         }
 
         if (i % 5 == 0) {
-            ballBody[i] = Bodies.circle((xCount), (yCount), 40);
-            ball[i] = pah(container, "./static/Img/BigBall.png", ballBody[i].x, ballBody[i].y, 80, 80, {anchor : 0.5});
+            ballBody[i] = CreateCircle((xCount), (yCount), 40, {}, fixedRate);
+            ball[i] = CreatePixiSprite(container, "./static/Img/BigBall.png", ballBody[i].x, ballBody[i].y, 80, 80, fixedRate, {anchor: 0.5});
             World.add(engine.world, ballBody[i]);
 
             xCount += 80;
         }
-        else
-        {
-            ballBody[i] = Bodies.circle((xCount), (yCount), 30);
-            ball[i] = pah(container, "./static/Img/ball.png", ballBody[i].x, ballBody[i].y, 60, 60, {anchor: 0.5});
+        else {
+            ballBody[i] = CreateCircle((xCount), (yCount), 30, {}, fixedRate);
+            ball[i] = CreatePixiSprite(container, "./static/Img/ball.png", ballBody[i].x, ballBody[i].y, 60, 60, fixedRate, {anchor: 0.5});
             World.add(engine.world, ballBody[i]);
 
             xCount += 80;
         }
-
     }
 
-    exit = pah(container, "./static/Img/Exit.png", 287, 1010, 177, 167);
-    exitBar = pah(container, "./static/Img/ExitBar.png", 377, 1065, 200, 140, {anchor: 0.5});
+    Engine.run(engine);
+    Runner.run(runner, engine);
 
-    World.add(engine.world, [ground, backGround2, backGround3, backGround4, backGround5]);
-
-    // create renderer
+    // Create Matter Renderer
     /*var render = Matter.Render.create({
         element: document.body,
         engine: engine,
         options: {
 
-            width: width,
-            height: height,
+            width: fixedWidthRate,
+            height: fixedHeightRate,
             showCollisions: true,
             showPositions: true,
             showBounds: true,
             showIds: true,
         }
-    });*/
+    });
 
-    //Matter.Render.run(render);
+    Render.run(render);*/
 
-    kickButton = pah(container, "./static/Img/Kick.png", 100, 1175, 104, 102);
-    getButton = pah(container, "./static/Img/Get.png", 550, 1175, 104, 102);
+    exit = CreatePixiSprite(container, "./static/Img/Exit.png", 287, 1010, 177, 167, fixedRate);
+    exitBar = CreatePixiSprite(container, "./static/Img/ExitBar.png", 377, 1065, 200, 140, fixedRate, {anchor: 0.5});
 
+    // Set Game State to Play
     gameState = 1;
-
-    kickButton.interactive = true;
-    kickButton.buttonMode = true;
-    kickButton.on('pointerdown', KickButtonClick);
-
-    getButton.interactive = true;
-    getButton.buttonMode = true;
-    getButton.on('pointerdown', GetButtonClick);
 }
 
-Init();
-Loop();
-
-var rewardBackGround;
-var rotateValue;
+// Game Loop
 function Loop() {
     requestAnimationFrame(Loop);
     renderer.render(container);
 
     for (var i = 0; i < ball.length; i++) {
-        if (ballBody[i].position.y >= height)
-            console.log(i);
-
         ball[i].position.x = ballBody[i].position.x;
         ball[i].position.y = ballBody[i].position.y;
     }
 
     switch (gameState) {
+        // Play
         case 1 :
 
             break;
 
+        // Get Reward
         case 2 :
-            if (ball[selectedIndex].position.y < 1180) {
-                ball[selectedIndex].position.x = width / 2;
-                ball[selectedIndex].position.y += 2;
-                ballBody[selectedIndex].position.y += 2;
+            if (ball[rewardIndex].position.y < 1180 * fixedRate) {
+                ball[rewardIndex].position.x = fixedWidthRate / 2;
+                ball[rewardIndex].position.y += 2;
+                ballBody[rewardIndex].position.y += 2;
 
-                if (rotateValue <= 6.2)
-                {
+                if (rotateValue <= 6.2) {
                     exitBar.rotation += 0.1;
                     rotateValue += 0.1;
                 }
             }
-            else
-            {
-                ball[selectedIndex].position.x = width / 2;
-                ball[selectedIndex].interactive = true;
-                ball[selectedIndex].buttonMode = true;
-                ball[selectedIndex].on('pointerdown', GetReward);
+            else {
+                ball[rewardIndex].position.x = fixedWidthRate / 2;
+                ball[rewardIndex].interactive = true;
+                ball[rewardIndex].buttonMode = true;
+                ball[rewardIndex].on('pointerdown', ShowReward);
 
                 gameState = 3;
             }
 
             break;
 
+        // Click Reward and Show Result
         case 3 :
             exitBar.rotation = 0;
-            ball[selectedIndex].position.x = width / 2;
+            ball[rewardIndex].position.x = fixedWidthRate / 2;
 
             break;
     }
 }
 
+// Kick Button CallBack
 function KickButtonClick() {
+    var force = fixedWidthRate * 0.0002;
+
     for (var i = 0; i < ball.length; i++) {
-        Matter.Body.applyForce(ballBody[i], ballBody[i].position, { x : 0, y : -0.15 });
+        Matter.Body.applyForce(ballBody[i], ballBody[i].position, {x: 0, y: -force / 2});
     }
 }
 
-
-var selectedIndex = 0;
+// Get Button Call Back
 function GetButtonClick() {
     if (gameState != 1)
         return;
 
     var selectedBall = ballBody[0];
 
-    for (var i = 0; i < ballBody.length; i++)
-    {
-        if (selectedBall.position.y < ballBody[i].position.y)
-        {
-            selectedIndex = i;
+    for (var i = 0; i < ballBody.length; i++) {
+        if (selectedBall.position.y < ballBody[i].position.y) {
+            rewardIndex = i;
             selectedBall = ballBody[i];
         }
     }
 
-    if (selectedBall.position.y <= 1020)
+    if (selectedBall.position.y <= 1020 * fixedRate)
         return;
+
+    if (ball[rewardIndex].width == 80 * fixedRate)
+        isBigBall = true;
+    else
+        isBigBall = false;
 
     rotateValue = 0;
 
     gameState = 2;
 
-    ball[selectedIndex].position.y = 1120;
-    World.remove(engine.world, selectedBall);
+    ball[rewardIndex].position.y = 1120 * fixedRate;
+    Matter.World.remove(engine.world, selectedBall);
 }
 
-function GetReward() {
-    rewardBackGround = pah(container, "./static/Img/RewardBackGround.png", 0, 0, 750, 1344);
+// Show Reward Call Back
+function ShowReward() {
+    rewardBackGround = pah(container, "./static/Img/RewardBackGround.png", 0, 0, 750 * fixedRate, 1344 * fixedRate);
     rewardBackGround.interactive = true;
     rewardBackGround.buttonMode = true;
     rewardBackGround.on('pointerdown', CloseReward);
 
-    ball[selectedIndex].destroy();
+    var ballPath;
 
-    ball.splice(selectedIndex, 1);
-    ballBody.splice(selectedIndex, 1);
+    if (isBigBall)
+        ballPath = "./static/Img/BigBall.png";
+    else
+        ballPath = "./static/Img/ball.png";
+
+    reward = CreatePixiSprite(container, ballPath, width / 2, height / 2, 100, 100, fixedRate, {anchor : 0.5});
+
+    ball[rewardIndex].destroy();
+
+    ball.splice(rewardIndex, 1);
+    ballBody.splice(rewardIndex, 1);
     gameState = 1;
 }
 
+// Close Reward Call Back
 function CloseReward() {
     rewardBackGround.destroy();
+    reward.destroy();
 }
+
+Init();
+Loop();
